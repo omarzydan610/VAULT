@@ -525,9 +525,9 @@ function App() {
 
       {/* FLOATING MODAL FOR ADDING BALANCE */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div 
-            className="w-full max-w-md bg-zinc-900 border-t sm:border border-zinc-800 rounded-t-[32px] sm:rounded-[32px] overflow-hidden p-6 shadow-2xl relative animate-modal-pop max-h-[90vh] overflow-y-auto no-scrollbar"
+            className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden p-6 shadow-2xl relative animate-modal-pop max-h-[90vh] overflow-y-auto no-scrollbar"
             role="dialog"
             aria-modal="true"
           >
@@ -676,9 +676,9 @@ function App() {
 
       {/* FLOATING MODAL FOR WITHDRAWING BALANCE */}
       {isWithdrawModalOpen && (
-        <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div 
-            className="w-full max-w-md bg-zinc-900 border-t sm:border border-zinc-800 rounded-t-[32px] sm:rounded-[32px] overflow-hidden p-6 shadow-2xl relative animate-modal-pop max-h-[90vh] overflow-y-auto no-scrollbar"
+            className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden p-6 shadow-2xl relative animate-modal-pop max-h-[90vh] overflow-y-auto no-scrollbar"
             role="dialog"
             aria-modal="true"
           >
