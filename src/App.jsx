@@ -9,6 +9,7 @@ import {
   DollarSign, 
   RefreshCw, 
   Trash2, 
+  RotateCcw,
   ArrowUpRight,
   ChevronRight,
   Info,
@@ -54,6 +55,41 @@ function App() {
 
   // Toast notification
   const [toast, setToast] = useState(null);
+
+  // Swipe & Revert States
+  const [swipedTxId, setSwipedTxId] = useState(null);
+  const [touchStartX, setTouchStartX] = useState(0);
+  const [revertConfirmTxId, setRevertConfirmTxId] = useState(null);
+
+  const handleTouchStart = (e) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchMove = (e, txId) => {
+    const touchCurrentX = e.touches[0].clientX;
+    const diffX = touchCurrentX - touchStartX;
+    if (diffX < -40) {
+      setSwipedTxId(txId); // Reveal revert button
+    } else if (diffX > 40) {
+      if (swipedTxId === txId) setSwipedTxId(null); // Close revert button
+    }
+  };
+
+  const handleMouseDown = (e) => {
+    setTouchStartX(e.clientX);
+  };
+
+  const handleMouseMove = (e, txId) => {
+    if (e.buttons === 1) { // Left click held down
+      const currentX = e.clientX;
+      const diffX = currentX - touchStartX;
+      if (diffX < -40) {
+        setSwipedTxId(txId);
+      } else if (diffX > 40) {
+        if (swipedTxId === txId) setSwipedTxId(null);
+      }
+    }
+  };
 
   // --- PERSISTENCE EFFECTS ---
   useEffect(() => {
@@ -425,37 +461,60 @@ function App() {
             <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
               {transactions.map((tx) => {
                 const isDeposit = tx.txType === 'deposit' || !tx.txType;
+                const isSwiped = swipedTxId === tx.id;
                 return (
-                  <div 
-                    key={tx.id} 
-                    className="flex justify-between items-center p-3 rounded-xl bg-zinc-900/30 border border-zinc-800/30 hover:border-zinc-800/80 hover:bg-zinc-900/50 transition-premium group animate-in fade-in slide-in-from-bottom-1 duration-200"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`p-1.5 rounded-lg shrink-0 ${isDeposit ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                        {tx.type === 'cash' ? <Wallet size={12} /> : <Landmark size={12} />}
-                      </div>
-                      <div className="truncate">
-                        <p className="text-xs font-extrabold text-zinc-200 truncate">
-                          {tx.note}
-                        </p>
-                        <p className="text-[8px] text-zinc-500 uppercase font-extrabold tracking-widest mt-0.5">
-                          {tx.type === 'cash' ? 'Cash' : 'Bank'} • {new Date(tx.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    </div>
+                  <div key={tx.id} className="relative overflow-hidden rounded-xl select-none">
                     
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className={`text-xs font-black font-mono ${isDeposit ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {isDeposit ? '+' : '-'} {formatCurrency(tx.amount, tx.currency)}
-                      </span>
+                    {/* Underlying Absolute Revert Action */}
+                    <div className={`absolute inset-y-0 right-0 flex items-center pr-2 z-0 transition-opacity duration-200 ${isSwiped ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
                       <button
-                        onClick={() => handleDeleteTransaction(tx.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-premium cursor-pointer"
-                        title="Delete Transaction"
+                        type="button"
+                        onClick={() => setRevertConfirmTxId(tx.id)}
+                        className="px-3 py-2 rounded-lg bg-red-950/40 border border-red-800/40 hover:bg-red-900/30 text-red-400 hover:text-red-300 transition-premium cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider shadow-md"
                       >
-                        <Trash2 size={12} />
+                        <RotateCcw size={12} />
+                        <span>Revert</span>
                       </button>
                     </div>
+
+                    {/* Foreground Swipeable List Item */}
+                    <div 
+                      onMouseDown={handleMouseDown}
+                      onMouseMove={(e) => handleMouseMove(e, tx.id)}
+                      onTouchStart={handleTouchStart}
+                      onTouchMove={(e) => handleTouchMove(e, tx.id)}
+                      style={{ transform: isSwiped ? 'translateX(-85px)' : 'translateX(0)' }}
+                      className="flex justify-between items-center p-3 rounded-xl bg-zinc-950 border border-zinc-900 hover:border-zinc-800/80 hover:bg-zinc-900/50 transition-transform duration-300 ease-out group relative z-10 cursor-grab active:cursor-grabbing"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`p-1.5 rounded-lg shrink-0 ${isDeposit ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                          {tx.type === 'cash' ? <Wallet size={12} /> : <Landmark size={12} />}
+                        </div>
+                        <div className="truncate">
+                          <p className="text-xs font-extrabold text-zinc-200 truncate">
+                            {tx.note}
+                          </p>
+                          <p className="text-[8px] text-zinc-500 uppercase font-extrabold tracking-widest mt-0.5">
+                            {tx.type === 'cash' ? 'Cash' : 'Bank'} • {new Date(tx.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="shrink-0 relative flex items-center justify-end">
+                        <span className={`text-xs font-black font-mono ${isDeposit ? 'text-emerald-400' : 'text-rose-400'} group-hover:opacity-0 transition-opacity duration-200`}>
+                          {isDeposit ? '+' : '-'} {formatCurrency(tx.amount, tx.currency)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setRevertConfirmTxId(tx.id)}
+                          className="absolute right-0 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-premium cursor-pointer"
+                          title="Delete Transaction"
+                        >
+                          <RotateCcw size={12} />
+                        </button>
+                      </div>
+                    </div>
+
                   </div>
                 );
               })}
@@ -743,6 +802,53 @@ function App() {
         </div>
       )}
 
+      {/* REVERT CONFIRMATION MODAL */}
+      {revertConfirmTxId && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div 
+            className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-[32px] overflow-hidden p-6 shadow-2xl relative animate-modal-pop"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="text-center space-y-4">
+              <div className="mx-auto w-12 h-12 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center">
+                <Info size={22} />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white tracking-wide uppercase">
+                  Revert Transaction?
+                </h3>
+                <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
+                  Are you sure you want to revert this transaction? The funds will be rolled back and the log entry will be permanently deleted.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRevertConfirmTxId(null);
+                    setSwipedTxId(null);
+                  }}
+                  className="py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDeleteTransaction(revertConfirmTxId);
+                    setRevertConfirmTxId(null);
+                    setSwipedTxId(null);
+                  }}
+                  className="py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-lg shadow-red-950/20"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
 
     </div>
