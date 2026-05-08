@@ -1,122 +1,483 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState, useEffect } from 'react';
+import { 
+  Plus, 
+  Wallet, 
+  Landmark, 
+  X, 
+  Check, 
+  DollarSign, 
+  RefreshCw, 
+  Trash2, 
+  ArrowUpRight,
+  ChevronRight,
+  Info,
+  Calendar
+} from 'lucide-react';
 
 function App() {
-  const [count, setCount] = useState(0)
+  // --- STATE ---
+  const [balances, setBalances] = useState(() => {
+    const saved = localStorage.getItem('expenses_balances');
+    return saved ? JSON.parse(saved) : {
+      cashEGP: 0,
+      bankEGP: 0,
+      bankUSD: 0,
+      usdToEgpRate: 48.50
+    };
+  });
+
+  const [transactions, setTransactions] = useState(() => {
+    const saved = localStorage.getItem('expenses_transactions');
+    return saved ? JSON.parse(saved) : [
+      {
+        id: 'init-1',
+        amount: 5000,
+        currency: 'EGP',
+        type: 'cash',
+        note: 'Starting Cash',
+        date: new Date(Date.now() - 86400000 * 2).toISOString()
+      },
+      {
+        id: 'init-2',
+        amount: 15000,
+        currency: 'EGP',
+        type: 'bank',
+        note: 'Salary Deposit (EGP)',
+        date: new Date(Date.now() - 86400000).toISOString()
+      },
+      {
+        id: 'init-3',
+        amount: 250,
+        currency: 'USD',
+        type: 'bank',
+        note: 'Freelance Payout (USD)',
+        date: new Date().toISOString()
+      }
+    ];
+  });
+
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [accountType, setAccountType] = useState('cash'); // 'cash' or 'bank'
+  const [bankCurrency, setBankCurrency] = useState('EGP'); // 'EGP' or 'USD'
+  const [note, setNote] = useState('');
+  
+  // Rate Fetching States
+  const [isFetchingRate, setIsFetchingRate] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(() => {
+    return localStorage.getItem('expenses_rate_last_updated') || '';
+  });
+
+  // Toast notification
+  const [toast, setToast] = useState(null);
+
+  // --- PERSISTENCE EFFECTS ---
+  useEffect(() => {
+    localStorage.setItem('expenses_balances', JSON.stringify(balances));
+  }, [balances]);
+
+  useEffect(() => {
+    localStorage.setItem('expenses_transactions', JSON.stringify(transactions));
+  }, [transactions]);
+
+  // --- TOAST HELPER ---
+  const showToast = (message) => {
+    setToast(message);
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
+
+  // --- ACTIONS ---
+  const handleAddBalance = (e) => {
+    e.preventDefault();
+    const parsedAmount = parseFloat(amount);
+    
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      showToast('Please enter a valid positive amount.');
+      return;
+    }
+
+    const selectedCurrency = accountType === 'cash' ? 'EGP' : bankCurrency;
+
+    // Update balances
+    setBalances(prev => {
+      const updated = { ...prev };
+      if (accountType === 'cash') {
+        updated.cashEGP += parsedAmount;
+      } else {
+        if (bankCurrency === 'EGP') {
+          updated.bankEGP += parsedAmount;
+        } else {
+          updated.bankUSD += parsedAmount;
+        }
+      }
+      return updated;
+    });
+
+    // Add transaction history
+    const newTx = {
+      id: Date.now().toString(),
+      amount: parsedAmount,
+      currency: selectedCurrency,
+      type: accountType,
+      note: note.trim() || 'Balance Added',
+      date: new Date().toISOString()
+    };
+
+    setTransactions(prev => [newTx, ...prev]);
+
+    // Reset Form & Close Modal
+    setAmount('');
+    setNote('');
+    setAccountType('cash');
+    setBankCurrency('EGP');
+    setIsModalOpen(false);
+    showToast(`Successfully added ${parsedAmount.toLocaleString()} ${selectedCurrency}!`);
+  };
+
+  const handleDeleteTransaction = (id) => {
+    const txToDelete = transactions.find(t => t.id === id);
+    if (!txToDelete) return;
+
+    // Reverse the balance addition
+    setBalances(prev => {
+      const updated = { ...prev };
+      if (txToDelete.type === 'cash') {
+        updated.cashEGP = Math.max(0, updated.cashEGP - txToDelete.amount);
+      } else {
+        if (txToDelete.currency === 'EGP') {
+          updated.bankEGP = Math.max(0, updated.bankEGP - txToDelete.amount);
+        } else {
+          updated.bankUSD = Math.max(0, updated.bankUSD - txToDelete.amount);
+        }
+      }
+      return updated;
+    });
+
+    setTransactions(prev => prev.filter(t => t.id !== id));
+    showToast('Transaction reverted and removed.');
+  };
+
+  const fetchExchangeRate = async (showNotification = false) => {
+    setIsFetchingRate(true);
+    try {
+      const res = await fetch('https://api.exchangerate.fun/latest?base=USD');
+      const data = await res.json();
+      if (data && data.rates && data.rates.EGP) {
+        const rate = data.rates.EGP;
+        setBalances(prev => ({
+          ...prev,
+          usdToEgpRate: rate
+        }));
+        
+        const dateStr = new Date(data.timestamp * 1000).toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        setLastUpdated(dateStr);
+        localStorage.setItem('expenses_rate_last_updated', dateStr);
+        
+        if (showNotification) {
+          showToast(`Exchange rate updated: 1 USD = ${rate.toFixed(2)} EGP`);
+        }
+      } else {
+        throw new Error('Invalid API response');
+      }
+    } catch (err) {
+      console.error('Error fetching exchange rate:', err);
+      if (showNotification) {
+        showToast('Failed to fetch latest exchange rate.');
+      }
+    } finally {
+      setIsFetchingRate(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchExchangeRate(false);
+  }, []);
+
+  // --- CALCULATIONS ---
+  const bankUSDInEGP = balances.bankUSD * balances.usdToEgpRate;
+  const totalBankBalanceEGP = balances.bankEGP + bankUSDInEGP;
+  const grandTotalEGP = balances.cashEGP + totalBankBalanceEGP;
+
+  // Formatting helpers
+  const formatCurrency = (val, symbol = 'EGP') => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: symbol,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(val).replace(symbol, '').trim() + ' ' + symbol;
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4 text-zinc-100 antialiased selection:bg-zinc-800 selection:text-zinc-100">
+      
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 glass-modal px-5 py-3 rounded-2xl flex items-center gap-3 shadow-2xl border border-zinc-800 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+          <span className="text-xs font-medium tracking-wide text-zinc-200">{toast}</span>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+      )}
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+      {/* Compact Balance Container */}
+      <div className="w-full max-w-xl bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-6 md:p-8 shadow-2xl relative transition-all duration-300">
+        
+        {/* Header with Live Exchange Rate */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-xs font-extrabold uppercase tracking-wider text-zinc-500">
+            Vault Balance
+          </h1>
+          <div className="text-right">
+            <button 
+              onClick={() => fetchExchangeRate(true)}
+              disabled={isFetchingRate}
+              className="px-2.5 py-1 rounded-full bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-[10px] font-semibold text-zinc-400 hover:text-white transition-all duration-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Click to refresh exchange rate"
+            >
+              <RefreshCw size={10} className={`text-zinc-500 ${isFetchingRate ? 'animate-spin' : ''}`} />
+              <span>1 USD = {balances.usdToEgpRate.toFixed(2)} EGP</span>
+            </button>
+            {lastUpdated && (
+              <p className="text-[8px] text-zinc-600 mt-1 uppercase font-semibold tracking-wider">
+                Updated: {lastUpdated}
+              </p>
+            )}
+          </div>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        {/* 1. TOTAL BALANCE SECTION */}
+        <div className="mb-8 border-b border-zinc-800/60 pb-6 flex justify-between items-end">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-1">
+              Total Balance
+            </p>
+            <div className="text-3xl font-black tracking-tight text-white font-mono leading-none">
+              {formatCurrency(grandTotalEGP, 'EGP')}
+            </div>
+          </div>
+          {/* Elegant + Button next to Total Balance */}
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="p-2 rounded-xl bg-white text-black hover:bg-zinc-200 active:scale-95 transition-all shadow-md cursor-pointer flex items-center justify-center gap-1 text-xs font-extrabold uppercase tracking-wider"
+            title="Add Balance"
+          >
+            <Plus size={14} strokeWidth={3} />
+            <span>Add</span>
+          </button>
+        </div>
+
+        {/* 2. HORIZONTALLY SPLIT CASH AND BANK BALANCE */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          
+          {/* Left Column: Cash Balance */}
+          <div className="glass-panel p-5 rounded-2xl border border-zinc-800/60 relative flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-zinc-400 mb-4">
+                <Wallet size={14} className="text-zinc-500" />
+                <span className="text-xs font-bold uppercase tracking-wider">Cash</span>
+              </div>
+              <p className="text-[10px] text-zinc-500 mb-1">Balance in EGP</p>
+              <p className="text-xl font-bold text-white font-mono">
+                {formatCurrency(balances.cashEGP, 'EGP')}
+              </p>
+            </div>
+          </div>
+
+          {/* Right Column: Bank Balance */}
+          <div className="glass-panel p-5 rounded-2xl border border-zinc-800/60 relative flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-zinc-400 mb-4">
+                <Landmark size={14} className="text-zinc-500" />
+                <span className="text-xs font-bold uppercase tracking-wider">Bank</span>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-[10px] text-zinc-500">
+                  <span>EGP</span>
+                  <span className="font-mono text-zinc-300 font-semibold">{formatCurrency(balances.bankEGP, 'EGP')}</span>
+                </div>
+                <div className="flex justify-between items-center text-[10px] text-zinc-500 pb-2 border-b border-zinc-800/40">
+                  <span>USD</span>
+                  <div className="text-right font-mono">
+                    <span className="text-zinc-300 font-semibold block">{formatCurrency(balances.bankUSD, 'USD')}</span>
+                    <span className="text-[9px] text-zinc-600 block">≈ {formatCurrency(bankUSDInEGP, 'EGP')}</span>
+                  </div>
+                </div>
+                <div className="pt-1 flex justify-between items-center">
+                  <span className="text-xs font-bold text-zinc-400">Total</span>
+                  <span className="text-sm font-bold text-white font-mono">{formatCurrency(totalBankBalanceEGP, 'EGP')}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* FLOATING MODAL FOR ADDING BALANCE */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
+          <div 
+            className="w-full max-w-md bg-zinc-900 border-t sm:border border-zinc-800 rounded-t-[32px] sm:rounded-[32px] overflow-hidden p-6 shadow-2xl relative animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto no-scrollbar"
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Modal Header */}
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-base font-extrabold text-white tracking-wide uppercase">
+                  Add Balance
+                </h3>
+                <p className="text-[10px] text-zinc-500 tracking-wide font-medium">Increment your tracking vault</p>
+              </div>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="p-1.5 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleAddBalance} className="space-y-6">
+              
+              {/* 1. Account Type selection (Cash / Bank) */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                  Select Destination Account
+                </label>
+                <div className="grid grid-cols-2 gap-2 bg-zinc-950 p-1.5 rounded-2xl border border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccountType('cash');
+                      setBankCurrency('EGP'); // Cash is only EGP
+                    }}
+                    className={`py-3 rounded-xl text-xs font-bold uppercase tracking-wide transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
+                      accountType === 'cash' 
+                        ? 'bg-zinc-800 text-white shadow-md' 
+                        : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  >
+                    <Wallet size={14} />
+                    Cash
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => setAccountType('bank')}
+                    className={`py-3 rounded-xl text-xs font-bold uppercase tracking-wide transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer ${
+                      accountType === 'bank' 
+                        ? 'bg-zinc-800 text-white shadow-md' 
+                        : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                  >
+                    <Landmark size={14} />
+                    Bank
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Bank Currency Selection (Shown ONLY if Bank is selected) */}
+              {accountType === 'bank' && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                    Select Currency
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 bg-zinc-950 p-1.5 rounded-2xl border border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setBankCurrency('EGP')}
+                      className={`py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-widest font-mono transition-all duration-200 cursor-pointer ${
+                        bankCurrency === 'EGP' 
+                          ? 'bg-zinc-800 text-white shadow-md' 
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      EGP
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBankCurrency('USD')}
+                      className={`py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-widest font-mono transition-all duration-200 cursor-pointer ${
+                        bankCurrency === 'USD' 
+                          ? 'bg-zinc-800 text-white shadow-md' 
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      USD
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 3. Numeric Amount Input */}
+              <div className="space-y-2">
+                <label htmlFor="amount-input" className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                  Amount to Add
+                </label>
+                <div className="relative">
+                  <input
+                    id="amount-input"
+                    type="number"
+                    step="any"
+                    required
+                    placeholder="0.00"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-4 pl-5 pr-16 text-xl font-bold font-mono text-white focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 transition-all placeholder:text-zinc-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    autoFocus
+                  />
+                  <div className="absolute right-5 top-1/2 -translate-y-1/2 text-xs font-black font-mono text-zinc-400 uppercase tracking-widest">
+                    {accountType === 'cash' ? 'EGP' : bankCurrency}
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Description / Note */}
+              <div className="space-y-2">
+                <label htmlFor="note-input" className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                  Note / Source (Optional)
+                </label>
+                <input
+                  id="note-input"
+                  type="text"
+                  placeholder="e.g. Salary, Side hustle, Savings"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl py-3.5 px-5 text-xs text-white focus:outline-none focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600 transition-all placeholder:text-zinc-700"
+                />
+              </div>
+
+              {/* Confirm Actions */}
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full py-4 rounded-2xl bg-white text-black font-extrabold text-xs tracking-wider uppercase hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Check size={14} strokeWidth={3} />
+                  Add Balance
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+
+
+    </div>
+  );
 }
 
-export default App
+export default App;
