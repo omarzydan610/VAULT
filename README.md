@@ -34,3 +34,9 @@ You can turn this website into a real mobile app on your home screen so it opens
 3. Tap **Add to Home screen** (or **Install app**).
 4. Follow the prompt to confirm.
 5. Done! Open it like any regular app.
+
+---
+
+## 🌐 Credits & Acknowledgements
+* **Exchange Rates**: Live currency exchange rates are powered by the free [FreeExchangeRateAPI](https://github.com/haxqer/FreeExchangeRateApi) developed by [@haxqer](https://github.com/haxqer).
+
