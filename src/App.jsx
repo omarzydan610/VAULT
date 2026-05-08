@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logoImg from './assets/Logo.png';
 import { 
   Plus, 
   Wallet, 
@@ -284,34 +285,18 @@ function App() {
         </div>
       )}
 
+      {/* App Logo & Header Outside Section (Centered and Bigger) */}
+      <div className="w-full max-w-xl flex flex-row items-center justify-center gap-4 mb-8 px-1">
+        <img src={logoImg} alt="Vault Logo" className="w-14 h-14 object-contain" />
+        <h1 className="text-4xl font-black tracking-widest uppercase text-white text-center">
+          VAULT
+        </h1>
+      </div>
+
       {/* Compact Balance Container */}
       <div className="w-full max-w-xl bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-6 md:p-8 shadow-2xl relative transition-premium">
         
-        {/* Header with Live Exchange Rate */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-xs font-extrabold uppercase tracking-wider text-zinc-500">
-            Vault Balance
-          </h1>
-          <div className="text-right flex flex-col items-end">
-            <button 
-              onClick={() => fetchExchangeRate(true)}
-              disabled={isFetchingRate}
-              className="px-3 py-1.5 rounded-full bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-[10px] font-semibold text-zinc-300 hover:text-white transition-premium flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              title="Click to refresh exchange rate"
-            >
-              <RefreshCw size={10} className={`text-zinc-400 ${isFetchingRate ? 'animate-spin' : ''}`} />
-              <span className="flex items-center gap-1">
-                1 USD = {balances.usdToEgpRate.toFixed(2)} EGP
-                <span className="pulse-indicator ml-0.5" />
-              </span>
-            </button>
-            {lastUpdated && (
-              <p className="text-[8px] text-zinc-500 mt-1 uppercase font-bold tracking-widest">
-                Updated: {lastUpdated}
-              </p>
-            )}
-          </div>
-        </div>
+
 
         {/* 1. TOTAL BALANCE SECTION */}
         <div className="mb-8 border-b border-zinc-800/40 pb-6 flex justify-between items-end">
@@ -356,11 +341,35 @@ function App() {
           {/* Right Column: Bank Balance */}
           <div className="glass-panel p-5 rounded-2xl relative flex flex-col justify-between group">
             <div>
-              <div className="flex items-center gap-2 text-zinc-400 mb-4">
-                <div className="p-1.5 rounded-lg bg-zinc-800 text-zinc-300">
-                  <Landmark size={14} />
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex items-center gap-2 text-zinc-400">
+                  <div className="p-1.5 rounded-lg bg-zinc-800 text-zinc-300">
+                    <Landmark size={14} />
+                  </div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Bank</span>
                 </div>
-                <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Bank</span>
+                
+                {/* Live Exchange Rate inside Bank Section */}
+                <div className="text-right flex flex-col items-end">
+                  <button 
+                    type="button"
+                    onClick={() => fetchExchangeRate(true)}
+                    disabled={isFetchingRate}
+                    className="px-2 py-1 rounded-full bg-zinc-950 hover:bg-zinc-850 border border-zinc-800 text-[9px] font-semibold text-zinc-300 hover:text-white transition-premium flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    title="Click to refresh exchange rate"
+                  >
+                    <RefreshCw size={8} className={`text-zinc-400 ${isFetchingRate ? 'animate-spin' : ''}`} />
+                    <span className="flex items-center gap-0.5">
+                      1 USD = {balances.usdToEgpRate.toFixed(2)} EGP
+                      <span className="pulse-indicator ml-0.5" />
+                    </span>
+                  </button>
+                  {lastUpdated && (
+                    <p className="text-[7px] text-zinc-500 mt-0.5 uppercase font-bold tracking-widest">
+                      Upd: {lastUpdated}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-3">
@@ -385,9 +394,11 @@ function App() {
 
         </div>
 
-        {/* 3. TRANSACTIONS SECTION */}
-        <div className="mt-8 border-t border-zinc-800/40 pt-6">
-          <div className="flex justify-between items-center mb-5">
+      </div>
+
+      {/* 3. TRANSACTIONS SECTION (SEPARATE CARD) */}
+      <div className="w-full max-w-xl bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-6 md:p-8 shadow-2xl relative transition-premium mt-6">
+        <div className="flex justify-between items-center mb-5">
             <div>
               <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">
                 Transaction History
@@ -450,7 +461,6 @@ function App() {
               })}
             </div>
           )}
-        </div>
 
       </div>
 
